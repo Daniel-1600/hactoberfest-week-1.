@@ -1,0 +1,2 @@
+# Official package; ONNX runtime is included in its base dependencies.
+birdnet==1.1.1
