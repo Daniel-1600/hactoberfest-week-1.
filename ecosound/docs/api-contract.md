@@ -34,3 +34,19 @@ Counts use saved discovery observation times (recording's server receipt time), 
 ## Feasibility status at initial delegation
 Python 3.14.7 and FFmpeg 8.1.2 are available. `pip install birdnet` and downloading the official soundscape failed with DNS errors from the sandbox (`Name or service not known` / `Could not resolve host`). BirdNET was not installed, so no real model output or bird identification was observed. The exact structured-array schema and 3.0 method signature were inspected through the official GitHub source, not inferred from illustrative JSON. Runtime remains real inference only; tests may inject fixtures.
 Sources: https://github.com/birdnet-team/birdnet/blob/main/src/birdnet/acoustic/inference/core/prediction/prediction_result.py and https://github.com/birdnet-team/birdnet/blob/main/src/birdnet/acoustic/models/v3_0/model.py .
+
+## Outdoor adventures
+
+`POST /api/adventures/generate` accepts `{ "duration_minutes":15, "interest":"birdwatching", "environment":"park", "difficulty":"beginner", "accessibility":"" }`. It returns a persistent adventure with validated tasks and `generation_source` equal to `qwen` or `fallback`. `GET /api/adventures` and `GET /api/adventures/{id}` retrieve stored progress. `POST /api/adventures/{id}/start` starts it. `POST /api/adventures/{id}/tasks/{taskId}/complete` accepts either `{ "self_reported":true }` for self-report task types or `{ "discovery_id":42 }` for AI-linked tasks; the server resolves the discovery. One discovery can credit at most one task. `POST /api/adventures/{id}/finish` records optional reflection and self-reported minutes after all tasks are done. XP event keys and task uniqueness prevent duplicate rewards.
+
+`GET /api/inference/providers` reports BirdNET, Qwen, and optional NatureLM availability. `POST /api/recordings/{id}/naturelm` accepts `{"task":"audio_description"}` or `{"task":"vocalization_characteristics"}` and returns descriptions only, explicitly not species identification.
+
+## Education, observations, destinations
+
+`GET /api/species/{scientificName}` returns an exact curated scientific-name record or an unavailable-data response. `POST /api/discoveries/{id}/explain` uses the saved prediction and curated record as Qwen-only context; missing knowledge is not passed to the model.
+
+`POST /api/observations` requires a saved `discovery_id`, `consent:true`, current `consent_version`, and `visibility` (`public` or `private`). Coordinates are optional and are only requested by the frontend after user action. `Idempotency-Key` is optional. Public map responses use rounded coordinate columns and exclude private, rejected, and sensitive/unmapped species. `GET /api/map/observations` supports `species`, `status`, `destination`, `since`, and `until`. No public response includes precise coordinate columns. `GET /api/observations` and `GET /api/observations/{id}` also omit exact coordinates.
+
+Destination routes: `GET /api/destinations`, `GET /api/destinations/{id}`, `GET /api/destinations/{id}/trails`, and `GET /api/destinations/{id}/experiences`. Only verified trails and approved/concept experiences are listed; an experience that references a trail requires the trail to be verified. No public admin-write route exists.
+
+`GET /api/profile/stats` and `GET /api/profile/badges` expose the single local profile. `POST /api/sync` accepts 1–50 typed operations with UUID-like operation IDs and bounded payloads. Replaying an operation with identical payload returns `already_applied`; reusing its ID with changed data is rejected. Supported offline operations are saved discoveries, adventure task completion/finish, and consented observations. Sync cannot upload arbitrary filesystem paths.

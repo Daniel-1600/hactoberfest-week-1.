@@ -1,8 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,9 +14,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
+	"ecosound/backend/internal/adventures"
+	"ecosound/backend/internal/ai/llm"
+	"ecosound/backend/internal/ai/retrieval"
 	"ecosound/backend/internal/db"
 	"ecosound/backend/internal/inference"
 	"ecosound/backend/internal/quests"
@@ -21,19 +29,28 @@ import (
 )
 
 type Config struct {
-	DB             *db.Store
-	Storage        *storage.Store
-	Identifier     inference.Identifier
-	QuestTimezone  *time.Location
-	Origin         string
-	MaxUploadBytes int64
-	Now            func() time.Time
+	DB                           *db.Store
+	Storage                      *storage.Store
+	Identifier                   inference.Identifier
+	QuestTimezone                *time.Location
+	Origin                       string
+	MaxUploadBytes               int64
+	Now                          func() time.Time
+	Adventures                   adventures.Service
+	Qwen                         llm.Client
+	QwenEnabled                  bool
+	NatureLMEnabled              bool
+	Education                    retrieval.Service
+	PublicMapEnabled             bool
+	ObservationLocationPrecision string
+	NatureLM                     inference.NatureLMProvider
 }
 
 type Server struct {
 	config   Config
 	mux      *http.ServeMux
 	analysis chan struct{}
+	syncMu   sync.Mutex
 }
 
 func New(c Config) (*Server, error) {
@@ -49,6 +66,28 @@ func New(c Config) (*Server, error) {
 	if c.Now == nil {
 		c.Now = time.Now
 	}
+	if c.ObservationLocationPrecision == "" {
+		c.ObservationLocationPrecision = "coarse"
+	}
+	if c.ObservationLocationPrecision != "coarse" && c.ObservationLocationPrecision != "very_coarse" {
+		return nil, errors.New("observation location precision must be coarse or very_coarse")
+	}
+	if c.Adventures.DB == nil {
+		c.Adventures.DB = c.DB
+	}
+	if c.Education.DB == nil {
+		c.Education.DB = c.DB
+	}
+	if c.QwenEnabled {
+		c.Adventures.Model = c.Qwen
+		c.Adventures.ModelAvailable = c.Qwen.Available
+		c.Education.Model = c.Qwen
+		c.Education.Enabled = true
+	}
+	c.NatureLM.Enabled = c.NatureLMEnabled
+	if c.Adventures.Now == nil {
+		c.Adventures.Now = c.Now
+	}
 	s := &Server{config: c, mux: http.NewServeMux(), analysis: make(chan struct{}, 1)}
 	s.mux.HandleFunc("GET /health", s.health)
 	s.mux.HandleFunc("POST /api/identify", s.identify)
@@ -57,6 +96,27 @@ func New(c Config) (*Server, error) {
 	s.mux.HandleFunc("POST /api/discoveries/{id}/confirm", s.confirm)
 	s.mux.HandleFunc("GET /api/quests/today", s.quest)
 	s.mux.HandleFunc("GET /api/recordings/{id}/audio", s.audio)
+	s.mux.HandleFunc("POST /api/recordings/{id}/naturelm", s.describeRecording)
+	s.mux.HandleFunc("POST /api/adventures/generate", s.generateAdventure)
+	s.mux.HandleFunc("GET /api/adventures", s.listAdventures)
+	s.mux.HandleFunc("GET /api/adventures/{id}", s.getAdventure)
+	s.mux.HandleFunc("POST /api/adventures/{id}/start", s.startAdventure)
+	s.mux.HandleFunc("POST /api/adventures/{id}/tasks/{taskId}/complete", s.completeAdventureTask)
+	s.mux.HandleFunc("POST /api/adventures/{id}/finish", s.finishAdventure)
+	s.mux.HandleFunc("GET /api/inference/providers", s.providers)
+	s.mux.HandleFunc("GET /api/species/{scientificName...}", s.species)
+	s.mux.HandleFunc("POST /api/discoveries/{id}/explain", s.explain)
+	s.mux.HandleFunc("POST /api/observations", s.createObservation)
+	s.mux.HandleFunc("GET /api/observations", s.listObservations)
+	s.mux.HandleFunc("GET /api/observations/{id}", s.getObservation)
+	s.mux.HandleFunc("GET /api/map/observations", s.mapObservations)
+	s.mux.HandleFunc("GET /api/destinations", s.listDestinations)
+	s.mux.HandleFunc("GET /api/destinations/{id}", s.getDestination)
+	s.mux.HandleFunc("GET /api/destinations/{id}/trails", s.destinationTrails)
+	s.mux.HandleFunc("GET /api/destinations/{id}/experiences", s.destinationExperiences)
+	s.mux.HandleFunc("GET /api/profile/stats", s.profileStats)
+	s.mux.HandleFunc("GET /api/profile/badges", s.profileBadges)
+	s.mux.HandleFunc("POST /api/sync", s.syncOperations)
 	return s, nil
 }
 
@@ -105,6 +165,9 @@ func reply(w http.ResponseWriter, status int, data any) {
 		slog.Error("write response", "error", err)
 	}
 }
+
+var idempotencyKey = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{7,99}$`)
+
 func fail(w http.ResponseWriter, status int, code, message string) {
 	reply(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
 }
@@ -164,7 +227,38 @@ func (s *Server) identify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	audio, err := s.config.Storage.Decode(r.Context(), io.LimitReader(file, s.config.MaxUploadBytes+1))
+	data, err := io.ReadAll(io.LimitReader(file, s.config.MaxUploadBytes+1))
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	if int64(len(data)) > s.config.MaxUploadBytes {
+		fail(w, 413, "upload_too_large", "Choose an audio file smaller than 15 MiB.")
+		return
+	}
+	key := r.Header.Get("Idempotency-Key")
+	hashBytes := sha256.Sum256(data)
+	contentHash := hex.EncodeToString(hashBytes[:])
+	if key != "" {
+		if !idempotencyKey.MatchString(key) {
+			fail(w, 400, "invalid_idempotency_key", "Provide a valid idempotency key.")
+			return
+		}
+		existing, found, lookupErr := s.config.DB.IdentificationByKey(r.Context(), key, contentHash)
+		if errors.Is(lookupErr, db.ErrIdempotencyConflict) {
+			fail(w, 409, "idempotency_conflict", "This operation key was already used with different audio.")
+			return
+		}
+		if lookupErr != nil {
+			internal(w, lookupErr)
+			return
+		}
+		if found {
+			reply(w, 200, existing)
+			return
+		}
+	}
+	audio, err := s.config.Storage.Decode(r.Context(), bytes.NewReader(data))
 	if err != nil {
 		switch {
 		case errors.Is(err, storage.ErrUnsupported):
@@ -198,7 +292,7 @@ func (s *Server) identify(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	out, err := s.config.DB.SaveIdentification(r.Context(), audio.ID, audio.Path, audio.Duration, recordedAt, result)
+	out, err := s.config.DB.SaveIdentificationIdempotent(r.Context(), audio.ID, audio.Path, audio.Duration, recordedAt, result, key, contentHash)
 	if err != nil {
 		internal(w, err)
 		return
@@ -233,13 +327,20 @@ func (s *Server) save(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "invalid_prediction", "Choose a prediction returned by BirdNET.")
 		return
 	}
-	discovery, err := s.config.DB.SaveDiscovery(r.Context(), body.PredictionID, s.config.Now())
+	key := r.Header.Get("Idempotency-Key")
+	if key != "" && !idempotencyKey.MatchString(key) {
+		fail(w, 400, "invalid_idempotency_key", "Provide a valid idempotency key.")
+		return
+	}
+	discovery, err := s.config.DB.SaveDiscoveryIdempotent(r.Context(), body.PredictionID, s.config.Now(), key)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			fail(w, 404, "prediction_not_found", "This prediction does not exist.")
 		case errors.Is(err, db.ErrDuplicate):
 			fail(w, 409, "duplicate_discovery", "You already saved a discovery from this recording. Each distinct recording counts once.")
+		case errors.Is(err, db.ErrIdempotencyConflict):
+			fail(w, 409, "idempotency_conflict", "This operation key was already used for a different prediction.")
 		default:
 			internal(w, err)
 		}

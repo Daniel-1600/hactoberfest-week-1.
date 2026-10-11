@@ -13,6 +13,118 @@
   --radius: 18px;
 }
 
+/* Outdoor adventure, biodiversity map, and offline/PWA surfaces. */
+.feature-page { width: min(100%, 1080px); margin: 0 auto; padding-bottom: 36px; }
+.feature-card { background: #1c1c1c; color: #ededed; border: 1px solid #2e2e2e; border-radius: 20px; box-shadow: 0 12px 35px rgba(0,0,0,.14); padding: 22px; }
+.feature-card h2,.feature-card h3 { margin: 0 0 8px; }
+.feature-card p { color: #a0a0a0; line-height: 1.55; }
+.feature-card-heading,.feature-grow,.feature-list > article > div { flex: 1; }
+.feature-card-heading,.adventure-row,.adventure-task,.destination-choice,.destination-intro,.experience-card,.map-observations article,.badge-card { display:flex; align-items:center; gap:16px; }
+.feature-card-heading { margin-bottom: 20px; }
+.feature-icon,.badge-mark { width: 44px; height: 44px; display:grid; place-items:center; flex:0 0 auto; border-radius: 15px; color:#236546; background:#eaf2e8; }
+.form-grid { display:grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap:14px; }
+.feature-page label { display:grid; gap:7px; color:#d2d2c9; font-size:13px; font-weight:650; }
+.feature-page select,.feature-page input:not([type=checkbox]),.feature-page textarea { width:100%; padding:12px 13px; color:#ededed; background:#171717; border:1px solid #3b3b3b; border-radius:11px; font:inherit; }
+.feature-page textarea { min-height:72px; resize:vertical; }
+.accessibility-field { margin:14px 0; }
+.source-note,.task-hint { display:flex; align-items:center; gap:8px; color:#a0a0a0; font-size:13px; line-height:1.5; }
+.feature-list,.task-stack { display:grid; gap:13px; }
+.feature-list { margin:16px 0 28px; }
+.adventure-row { align-items:flex-start; }
+.adventure-title { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.adventure-title h3 { margin:0; }
+.adventure-row small,.adventure-task small,.destination-choice small,.destination-details small,.badge-card small { color:#718076; font-size:12px; }
+.adventure-active-heading { padding:28px 0 18px; }
+.adventure-active-heading h1 { margin:12px 0; font-size:clamp(2rem,5vw,3.2rem); letter-spacing:-.04em; }
+.phone-away { display:flex; align-items:flex-start; gap:13px; margin:15px 0 24px; padding:19px; color:#234d39; background:#edf5e9; border-radius:16px; }
+.phone-away span { display:block; margin-top:5px; color:#617266; font-size:13px; }
+.task-count { width:38px; height:38px; display:grid; place-items:center; flex:0 0 auto; border-radius:50%; color:#236546; background:#eaf2e8; font-weight:700; }
+.adventure-task.is-done { border-color:#b8d3b9; }
+.xp-label { color:#597865; font-size:12px; font-weight:700; }
+.compact-button { padding:10px 13px; white-space:nowrap; }
+.reflection-card { display:grid; gap:14px; margin-top:22px; }
+.reflection-card h2,.reflection-card p { margin:0; }
+.checkbox-row { display:flex!important; align-items:center; }
+.checkbox-row input { accent-color:#236546; }
+.quest-complete-banner,.offline-notice { display:flex; align-items:center; gap:10px; margin:18px 0; padding:16px 18px; border-radius:14px; color:#275b40; background:#eaf4e8; }
+.offline-notice { justify-content:space-between; flex-wrap:wrap; background:#f5f0df; }
+.map-filters { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:end; gap:13px; margin-bottom:18px; }
+.map-canvas { width:100%; min-height:420px; border-radius:20px; overflow:hidden; background:#e9efe5; }
+.map-observations .feature-card { justify-content:space-between; }
+.map-observations small { display:block; margin-top:5px; }
+.destination-layout { display:grid; grid-template-columns:minmax(220px,.75fr) 2fr; gap:20px; }
+.destination-list { display:grid; align-content:start; gap:9px; }
+.destination-choice { width:100%; justify-content:space-between; padding:14px; border:1px solid #2e2e2e; border-radius:15px; background:#1c1c1c; color:#ededed; text-align:left; cursor:pointer; }
+.destination-choice.selected { border-color:#3ecf8e; background:#102b1d; }
+.destination-choice span { flex:1; display:grid; gap:3px; }
+.destination-details .section-heading { margin:24px 0 12px; }
+.experience-card { align-items:flex-start; }
+.experience-card h3 { margin:10px 0 5px; }
+.experience-card p { margin:6px 0; }
+.passport-stats,.badge-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; }
+.stat-card { display:grid; gap:9px; color:#236546; }
+.stat-card strong { color:#ededed; font-size:28px; }
+.stat-card span { color:#64746a; font-size:12px; }
+.badge-card { align-items:flex-start; opacity:.65; }
+.badge-card.earned { opacity:1; border-color:#1a3a28; background:#0d2e1f; }
+.badge-card h3 { margin:0 0 5px; }
+.badge-card p { margin:0 0 7px; font-size:13px; }
+.guide-wrap { margin-top:16px; }
+.guide-button { padding-left:0; }
+.species-guide { display:grid; gap:10px; margin-top:8px; padding:17px; border:1px solid #dce7d9; border-radius:16px; background:#f8fbf4; }
+.guide-heading { display:flex; align-items:center; gap:10px; color:#276445; }
+.guide-heading strong,.guide-heading em { display:block; }
+.guide-heading em { margin-top:3px; color:#718076; font-size:13px; }
+.guide-explanation { color:#3d5546!important; }
+.guide-activities { padding:12px 14px; border-radius:12px; background:#edf4e9; color:#385342; font-size:13px; }
+.guide-activities ul { margin:7px 0 0; padding-left:18px; display:grid; gap:6px; line-height:1.45; }
+.species-guide dl { display:grid; grid-template-columns:130px 1fr; gap:7px 12px; margin:0; font-size:13px; }
+.species-guide dt { color:#52675a; font-weight:700; }
+.species-guide dd { margin:0; color:#68766c; line-height:1.45; }
+.ethical-note { display:flex; gap:8px; color:#415c4b!important; font-size:13px; }
+.species-guide a { color:#286448; font-size:12px; }
+.species-guide small { color:#748076; line-height:1.45; }
+.contribute-wrap { display:grid; gap:8px; margin-top:11px; }
+.contribute-panel { display:grid; gap:12px; padding:14px; border:1px solid #2e2e2e; border-radius:13px; background:#171717; }
+.contribute-panel p,.share-status { color:#a0a0a0; font-size:12px; line-height:1.5; }
+.consent-check { display:flex!important; grid-template-columns:none!important; align-items:flex-start; gap:9px!important; font-size:12px!important; line-height:1.45; }
+.consent-check input { margin-top:2px; flex:0 0 auto; accent-color:#236546; }
+.queued-recordings { display:grid; gap:9px; margin-top:16px; padding:14px; border:1px solid #e2e8dc; border-radius:14px; background:#f8f8f0; }
+.queued-recordings p,.queued-recordings span { color:#68766c; font-size:12px; }
+.queued-recordings > div { display:flex; justify-content:space-between; flex-wrap:wrap; align-items:center; gap:10px; padding-top:9px; border-top:1px solid #e3e9de; }
+.queued-recordings { border-color:#2e2e2e; background:#171717; }
+.queued-recordings > div { border-color:#2e2e2e; }
+.queued-recordings strong { color:#ededed; }
+.adventure-home-button { margin-left:9px; }
+.naturelm-panel { display:grid; gap:5px; margin-top:14px; padding:14px; border-radius:14px; background:#171717; }
+.naturelm-panel > small { color:#888; font-size:11px; }
+.naturelm-result { display:grid; gap:8px; margin-top:8px; color:#c4cfbe; }
+.naturelm-result p { display:flex; align-items:flex-start; gap:8px; color:#a0a0a0; font-size:12px; }
+.naturelm-result blockquote { margin:0; padding:10px 12px; border-left:2px solid #3ecf8e; background:#1c1c1c; color:#ededed; font-size:13px; }
+.quiet-timer { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin:12px 0 20px; padding:15px; border:1px solid #2e2e2e; border-radius:14px; background:#171717; }
+.quiet-timer > div { flex:1; min-width:180px; display:grid; gap:5px; }
+.quiet-timer small { color:#888; line-height:1.45; }
+.quiet-timer .checkbox-row { width:100%; }
+.experience-start { margin-top:13px; }
+.featured-destination { display:grid; gap:12px; margin:0 0 20px; border-color:#1a3a28; background:#0d2e1f; }
+.featured-destination h2 { font-size:21px; }
+.featured-destination p { max-width:700px; }
+@media(max-width:760px) {
+  .desktop-nav { display:none!important; }
+  .mobile-nav { display:flex!important; position:fixed; inset:auto 0 0; z-index:40; overflow-x:auto; justify-content:flex-start; gap:4px; padding:8px max(8px,env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)); background:rgba(255,253,246,.97); border-top:1px solid #e3e9de; backdrop-filter:blur(12px); }
+  .mobile-nav button { min-width:68px; flex:1; padding:6px 4px; font-size:10px; }
+  .main-content { padding-bottom:105px!important; }
+  .form-grid,.map-filters { grid-template-columns:1fr 1fr; }
+  .destination-layout { grid-template-columns:1fr; }
+  .destination-list { display:flex; overflow-x:auto; }
+  .destination-choice { min-width:210px; }
+  .passport-stats,.badge-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .map-canvas { min-height:340px; }
+  .adventure-task { align-items:flex-start; flex-wrap:wrap; }
+  .adventure-task > .compact-button,.adventure-task > .task-hint { margin-left:54px; }
+}
+@media(max-width:440px) { .map-filters,.passport-stats { grid-template-columns:1fr 1fr; } .feature-card { padding:17px; } .adventure-row { flex-wrap:wrap; } .adventure-row .secondary-button { margin-left:60px; } }
+
 * { box-sizing: border-box }
 
 body {

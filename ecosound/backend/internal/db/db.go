@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 )
 
 var ErrDuplicate = errors.New("a discovery is already saved for this prediction or recording")
+var ErrIdempotencyConflict = errors.New("idempotency key was used with different content")
 
 type Store struct{ *sql.DB }
 
@@ -88,7 +90,20 @@ func (s *Store) migrate() error {
 // Fixed-width UTC values sort chronologically, including day boundaries.
 func Timestamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000000000Z") }
 
+func NewID() string {
+	var value [16]byte
+	if _, err := rand.Read(value[:]); err != nil {
+		panic("crypto/rand unavailable: " + err.Error())
+	}
+	value[6] = value[6]&0x0f | 0x40
+	value[8] = value[8]&0x3f | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", value[0:4], value[4:6], value[6:8], value[8:10], value[10:16])
+}
+
 func (s *Store) SaveIdentification(ctx context.Context, id, path string, duration float64, recordedAt time.Time, result models.InferenceResult) (models.Identification, error) {
+	return s.SaveIdentificationIdempotent(ctx, id, path, duration, recordedAt, result, "", "")
+}
+func (s *Store) SaveIdentificationIdempotent(ctx context.Context, id, path string, duration float64, recordedAt time.Time, result models.InferenceResult, key, contentHash string) (models.Identification, error) {
 	out := models.Identification{RecordingID: id, AudioURL: AudioURL(id), DurationSeconds: duration, InferenceResult: result}
 	tx, err := s.BeginTx(ctx, nil)
 	if err != nil {
@@ -96,7 +111,7 @@ func (s *Store) SaveIdentification(ctx context.Context, id, path string, duratio
 	}
 	defer tx.Rollback()
 	now := Timestamp(recordedAt)
-	_, err = tx.ExecContext(ctx, "INSERT INTO recordings(id,file_path,content_type,duration_seconds,recorded_at,created_at) VALUES(?,?,?,?,?,?)", id, path, "audio/wav", duration, now, now)
+	_, err = tx.ExecContext(ctx, "INSERT INTO recordings(id,file_path,content_type,duration_seconds,recorded_at,created_at,idempotency_key,content_sha256) VALUES(?,?,?,?,?,?,?,?)", id, path, "audio/wav", duration, now, now, nullString(key), nullString(contentHash))
 	if err != nil {
 		return out, err
 	}
@@ -116,7 +131,62 @@ func (s *Store) SaveIdentification(ctx context.Context, id, path string, duratio
 
 func AudioURL(id string) string { return "/api/recordings/" + id + "/audio" }
 
+func (s *Store) IdentificationByKey(ctx context.Context, key, contentHash string) (models.Identification, bool, error) {
+	var out models.Identification
+	var storedHash string
+	err := s.QueryRowContext(ctx, `SELECT id,duration_seconds,content_sha256 FROM recordings WHERE idempotency_key=?`, key).Scan(&out.RecordingID, &out.DurationSeconds, &storedHash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, false, nil
+	}
+	if err != nil {
+		return out, false, err
+	}
+	if contentHash != "" && contentHash != storedHash {
+		return out, false, ErrIdempotencyConflict
+	}
+	out.AudioURL = AudioURL(out.RecordingID)
+	out.Predictions = []models.Prediction{}
+	rows, err := s.QueryContext(ctx, `SELECT id,model_name,model_version,scientific_name,common_name,raw_species_name,confidence,start_time,end_time,coalesce(d.user_confirmed,0) FROM predictions p LEFT JOIN discoveries d ON d.prediction_id=p.id WHERE p.recording_id=? ORDER BY p.id`, out.RecordingID)
+	if err != nil {
+		return out, false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p models.Prediction
+		var confirmed int
+		if err := rows.Scan(&p.ID, &out.Model, &out.ModelVersion, &p.ScientificName, &p.CommonName, &p.RawSpeciesName, &p.Confidence, &p.StartTime, &p.EndTime, &confirmed); err != nil {
+			return out, false, err
+		}
+		p.UserConfirmed = confirmed == 1
+		out.Predictions = append(out.Predictions, p)
+	}
+	return out, true, rows.Err()
+}
+
+func nullString(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
+}
+
 func (s *Store) SaveDiscovery(ctx context.Context, predictionID int64, now time.Time) (models.Discovery, error) {
+	return s.SaveDiscoveryIdempotent(ctx, predictionID, now, "")
+}
+func (s *Store) SaveDiscoveryIdempotent(ctx context.Context, predictionID int64, now time.Time, key string) (models.Discovery, error) {
+	if key != "" {
+		var existingID, existingPrediction int64
+		err := s.QueryRowContext(ctx, `SELECT id,prediction_id FROM discoveries WHERE idempotency_key=?`, key).Scan(&existingID, &existingPrediction)
+		if err == nil {
+			if existingPrediction != predictionID {
+				return models.Discovery{}, ErrIdempotencyConflict
+			}
+			return s.Discovery(ctx, existingID)
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return models.Discovery{}, err
+		}
+	}
 	tx, err := s.BeginTx(ctx, nil)
 	if err != nil {
 		return models.Discovery{}, err
@@ -127,7 +197,7 @@ func (s *Store) SaveDiscovery(ctx context.Context, predictionID int64, now time.
 	if err != nil {
 		return models.Discovery{}, err
 	}
-	res, err := tx.ExecContext(ctx, `INSERT INTO discoveries(prediction_id,recording_id,observed_at,created_at) VALUES(?,?,?,?)`, predictionID, recordingID, observedAt, Timestamp(now))
+	res, err := tx.ExecContext(ctx, `INSERT INTO discoveries(prediction_id,recording_id,observed_at,created_at,idempotency_key) VALUES(?,?,?,?,?)`, predictionID, recordingID, observedAt, Timestamp(now), nullString(key))
 	if err != nil {
 		var se sqlite3.Error
 		if errors.As(err, &se) && se.ExtendedCode == sqlite3.ErrConstraintUnique {
@@ -138,6 +208,29 @@ func (s *Store) SaveDiscovery(ctx context.Context, predictionID int64, now time.
 	id, err := res.LastInsertId()
 	if err != nil {
 		return models.Discovery{}, err
+	}
+	stamp := Timestamp(now)
+	if _, err = tx.ExecContext(ctx, `INSERT INTO xp_events(event_key,points,created_at) VALUES(?,?,?)`, fmt.Sprintf("discovery:%d", id), 10, stamp); err != nil {
+		return models.Discovery{}, err
+	}
+	var savedCount, recordingsCount, speciesCount int
+	if err = tx.QueryRowContext(ctx, `SELECT count(*),count(DISTINCT d.recording_id),count(DISTINCT CASE WHEN trim(p.scientific_name)!='' AND instr(p.scientific_name,' ')>0 THEN p.scientific_name END) FROM discoveries d JOIN predictions p ON p.id=d.prediction_id`).Scan(&savedCount, &recordingsCount, &speciesCount); err != nil {
+		return models.Discovery{}, err
+	}
+	if savedCount == 1 {
+		if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO earned_badges(badge_id,earned_at) VALUES('first-discovery',?)`, stamp); err != nil {
+			return models.Discovery{}, err
+		}
+	}
+	if recordingsCount >= 5 {
+		if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO earned_badges(badge_id,earned_at) VALUES('bird-listener',?)`, stamp); err != nil {
+			return models.Discovery{}, err
+		}
+	}
+	if speciesCount >= 5 {
+		if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO earned_badges(badge_id,earned_at) VALUES('five-species',?)`, stamp); err != nil {
+			return models.Discovery{}, err
+		}
 	}
 	if err = tx.Commit(); err != nil {
 		return models.Discovery{}, err
@@ -178,7 +271,12 @@ func (s *Store) Discoveries(ctx context.Context) ([]models.Discovery, error) {
 }
 
 func (s *Store) Confirm(ctx context.Context, id int64) (models.Discovery, error) {
-	res, err := s.ExecContext(ctx, "UPDATE discoveries SET user_confirmed=1 WHERE id=?", id)
+	tx, err := s.BeginTx(ctx, nil)
+	if err != nil {
+		return models.Discovery{}, err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, "UPDATE discoveries SET user_confirmed=1 WHERE id=?", id)
 	if err != nil {
 		return models.Discovery{}, err
 	}
@@ -188,6 +286,12 @@ func (s *Store) Confirm(ctx context.Context, id int64) (models.Discovery, error)
 	}
 	if n == 0 {
 		return models.Discovery{}, sql.ErrNoRows
+	}
+	if _, err = tx.ExecContext(ctx, "UPDATE observations SET verification_status='user_confirmed' WHERE discovery_id=? AND verification_status='ai_predicted'", id); err != nil {
+		return models.Discovery{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return models.Discovery{}, err
 	}
 	return s.Discovery(ctx, id)
 }

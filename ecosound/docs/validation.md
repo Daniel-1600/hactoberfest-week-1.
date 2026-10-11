@@ -11,13 +11,15 @@ python3 -m unittest discover -s inference -p 'test_*.py' -v
 cd backend && go test ./...
 ```
 
-On 2026-10-10, `make test` passed the full Go suite, all 12 Python boundary tests, and all 12 frontend workflow tests. `make lint` passed Go vet/formatting, Python syntax/Ruff, ESLint, and strict TypeScript checking. The Go race detector also passed. The smoke script passed `bash -n` syntax validation. These checks establish the local contracts, not real species identification.
+On 2026-10-10, the extension checks passed the complete Go suite, all 14 Python boundary tests, and all 14 frontend tests. The frontend TypeScript check, ESLint, and production Next.js build passed. Earlier original-app validation also passed `go vet`, gofmt, Ruff, the Go race detector, and smoke-script shell syntax. These checks establish local contracts, not real model inference.
 
 The sandbox also refused a local socket connection (`curl` to `127.0.0.1:8080` returned “Operation not permitted”). Consequently, a running-server HTTP smoke check and browser walkthrough were not completed in this session. The Go HTTP tests use `httptest` and do not require a listening socket. Run the smoke script and browser check in an environment that allows localhost connections.
 
 The Python tests construct objects with BirdNET's source-verified structured-array shape. They cover original label preservation, temporal rows and score precision, valid empty results, unprocessable inputs, missing fields, invalid scores/times, WAV validation, and CLI failure codes. They do not inject fake species into the running application or claim a successful model call.
 
 The Go tests exercise HTTP behavior and process boundaries using temporary local data and fixture processes. They verify request validation, storage and quest invariants, and error handling without downloading BirdNET.
+
+Expansion tests verify Qwen-generated JSON validation and a clearly labeled fallback, adventure task and reward uniqueness, API offline-sync replay, location consent/generalization/sensitive-species filtering, curated education lookup, destination route exclusion, profile fields, NatureLM text-only normalization, and frontend adventure/fact rendering. These tests use local fixtures and do not establish that Qwen or NatureLM weights are available or infer correctly.
 
 ## Manual browser check
 

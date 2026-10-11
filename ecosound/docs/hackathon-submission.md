@@ -6,20 +6,22 @@ People spend more time indoors and on screens, while everyday wildlife sounds pa
 
 ## Solution
 
-EcoSound turns outdoor listening into short missions supported by open-source bioacoustics AI. Record or upload a bird sound, review BirdNET candidates, save one personal discovery with its audio, and follow a daily quest to find three distinct calls and two distinct species. The loop encourages another attentive walk without presenting an AI score as proof of a species.
+EcoSound turns outdoor listening into short missions supported by open-weight AI. A local Qwen service can generate a personalized adventure from the user's time, interests, environment, difficulty, and optional approved destination guidance. Users record or upload a bird sound, review BirdNET candidates, save a private discovery, learn from curated source-backed species information, and optionally contribute a privacy-generalized observation. The original daily quest remains independent. Adventures encourage an attentive walk without presenting an AI score as proof of a species.
 
 ## How it works
 
-1. Capture or upload 1–60 seconds of audio. The server validates the content and uses FFmpeg to create a mono WAV.
-2. BirdNET 3.0 analyzes the clip locally and returns candidate labels, scores, and time windows. No detection is a valid outcome.
-3. Save one candidate per recording in a private collection. Replay the audio and, if personally reviewed, mark the choice “Personally confirmed — not independently scientifically verified.”
-4. Morning Bird Quest derives its counts from saved recordings and distinct plausible scientific names in the configured local day. Counts come from stored discoveries, not seeded demo progress.
+1. Generate an adventure using Qwen through a persistent local OpenAI-compatible model endpoint. The Go service validates structured output, rejects unsafe tasks, and clearly labels a safe fallback if generation is unavailable.
+2. Start the adventure and put the phone away; later capture or upload 1–60 seconds of audio. The server validates the content and uses FFmpeg to create a mono WAV.
+3. BirdNET 3.0 analyzes the clip locally and returns candidate labels, scores, and time windows. No detection is a valid outcome. NatureLM-audio is an optional experimental description provider, not a species classifier.
+4. Save one candidate per recording in a private collection. Curated species records ground short educational explanations. Replay the audio and, if personally reviewed, mark the choice “Personally confirmed — not independently scientifically verified.”
+5. Optionally provide explicit consent to contribute an observation. The public map receives generalized coordinates only. Adventure progress and XP are persisted; sync operations are queued while offline. BirdNET, Qwen, NatureLM, and public observation submission still require a reachable server/model service.
+6. Morning Bird Quest derives its counts from saved recordings and distinct plausible scientific names in the configured local day. Counts come from stored discoveries, not seeded demo progress.
 
-The interface uses React and Next.js; the API uses Go, SQLite, and private local WAV storage. FFprobe checks uploaded media, FFmpeg decodes it, and a Python subprocess runs BirdNET. An observed event means the real listening encounter; the MVP uses server receipt time as its proxy observation time, including for later file uploads.
+The interface uses React and Next.js; the API uses Go, SQLite, and private local WAV storage. FFprobe checks uploaded media, FFmpeg decodes it, and a Python subprocess runs BirdNET. An observed event means the real listening encounter; the MVP uses server receipt time as its proxy observation time, including for later file uploads. Destinations and experiences are data-driven; the route-free Karura-inspired content is explicitly a concept demonstration and is not affiliated with forest management.
 
 ## Open-source AI
 
-EcoSound calls the official BirdNET 3.0 ONNX model through the open-source `birdnet` Python package. The model runs on a locally deployable server, so the application does not need to send recordings to a hosted identification API. It preserves BirdNET's original label, score, and time window for review. The model's weights have separate CC BY-NC-SA 4.0 terms; the app code is MIT licensed.
+EcoSound calls the official BirdNET 3.0 ONNX model through the open-source `birdnet` Python package. Qwen3-1.7B powers optional adventure generation and grounded explanations via a local model service. NatureLM-audio is optional and reports audio descriptions only. These models run on locally deployable services, so the application does not depend on paid inference APIs. BirdNET's original label, score, and time window remain available for review. Model weights and gated access terms have separate licensing from the MIT-licensed app code; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Why open
 
@@ -44,21 +46,21 @@ BirdNET installation and the first model asset download were blocked by sandbox 
 5. Run inference offline on mobile devices.
 6. Expand beyond birds to frogs, insects, and other animal groups.
 
-These are proposals, not implemented features.
+Expert review, opt-in research export, on-device inference, multi-account identity, and additional animal classifiers remain future work. The Qwen, BirdNET, and NatureLM model paths are configurable optional external local services; this environment did not have their weights/runtime available for real model verification. See each feature note and [validation.md](validation.md) for precise status.
 
 ## 90-second demo script
 
 Before filming, install BirdNET and download its model assets. Save two **real, distinct recordings** of one recognized species through the app earlier on the same Nairobi day, leaving calls at 2/3 and species at 1/2. Prepare another genuine recording whose real result identifies a second species. These are prior model-backed discoveries, never database seeds or fixture predictions. Without this preparation, show the actual incomplete counts. Inference latency must be measured on the demo machine; a 90-second run has not been verified in the restricted build environment.
 
-**0–15 seconds:** Open EcoSound, show Morning Bird Quest and its honest 2/3 and 1/2 progress. Explain that the next outdoor listening moment can finish today's adventure. Select Start quest.
+**0–15 seconds:** Open Explore, choose duration, interest, and environment, and generate an adventure. Show whether it came from Qwen or the clearly labeled fallback. Start it and point out the phone-away prompt.
 
-**15–40 seconds:** Record a clear call for a few seconds and stop, or upload the prepared authentic bird recording. Play it back, select Identify this sound, and show actual BirdNET processing and results. Mention that no detection is possible and that a model score is not certainty.
+**15–40 seconds:** Use a previously prepared real recording for a quick run, or capture a clear call. Play it back, identify it, and show actual BirdNET output. Mention that no detection is possible and the score is not certainty. If inference is unverified on the demo machine, stop short of implying real results.
 
-**40–60 seconds:** Save the second-species candidate. Show the automatically refreshed “Quest complete! You explored the natural world today.” message. Explain that the database counted three distinct recordings and two species, without manual checkboxes.
+**40–60 seconds:** Save a candidate and open Learn About This Species. Point out the curated source and short grounded explanation; if the species is not in the small knowledge store, show the unavailable-data message.
 
-**60–80 seconds:** Open the collection, replay the new discovery, and show its date and AI score. If personally reviewed, confirm it and show “Personally confirmed — not independently scientifically verified.” The original prediction stays unchanged.
+**60–80 seconds:** Contribute an observation only after explicit consent, then show its generalized map marker and verification label. Mention that precise coordinates and recordings remain private.
 
-**80–90 seconds:** Explain that Go, SQLite, and local BirdNET ONNX inference keep the loop inspectable and locally deployable. Expert-reviewed, opt-in evaluation data is future work.
+**80–90 seconds:** Finish the adventure and show the XP/passport update and self-reported reflection. Clarify that cached adventures and queued recordings work offline, while AI inference and public map sync require connectivity.
 
 ## Screenshot and demo guidance
 

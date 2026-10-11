@@ -4,6 +4,8 @@ import EcoSound from '../components/ecosound';
 import Listen from '../components/listen';
 import { CONFIRMATION_COPY, strongestCandidates } from '../lib/api';
 import { useRecorder } from '../lib/use-recorder';
+import Explore from '../components/explore';
+import NatureGuide from '../components/nature-guide';
 
 const prediction = { id: 12, scientific_name: 'Turdus merula', common_name: 'Common Blackbird', raw_species_name: 'Turdus merula_Common Blackbird', confidence: .87, start_time: 0, end_time: 3, user_confirmed: false };
 const otherPrediction = { ...prediction, id: 13, scientific_name: 'Erithacus rubecula', common_name: 'European Robin', confidence: .65 };
@@ -183,4 +185,26 @@ describe('microphone lifecycle', () => {
 
 it('groups the highest score for display without inventing prediction identifiers', () => {
   expect(strongestCandidates(identification.predictions).map(item => item.id)).toEqual([12, 13]);
+});
+
+describe('outdoor expansion', () => {
+  it('creates and clearly labels an adventure when the server returns its safe fallback', async () => {
+    const generated = { id: 'adventure-1', title: 'A Quiet Nature Quest', description: 'Take fifteen minutes outdoors.', duration_minutes: 15, interest: 'birdwatching', environment: 'park', difficulty: 'beginner', generation_source: 'fallback', status: 'ready', tasks: [] };
+    const fetchMock = vi.fn((url: string) => url.endsWith('/api/adventures') ? response({ adventures: [] }) : response(generated, 201));
+    vi.stubGlobal('fetch', fetchMock);
+    const onStart = vi.fn(); render(<Explore onStart={onStart} onDestinations={() => {}}/>);
+    await screen.findByText('Your next outdoor story starts here.');
+    fireEvent.click(screen.getByRole('button', { name: /Generate Adventure/ }));
+    await waitFor(() => expect(onStart).toHaveBeenCalledWith(generated));
+    expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/api/adventures/generate'))).toBe(true);
+  });
+
+  it('shows curated species attribution and conservation content', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => response({ scientific_name: 'Bostrychia hagedash', common_name: 'Hadada Ibis', habitat: 'Wetlands and wooded areas.', diet: 'Invertebrates and small prey.', ecological_role: 'Forages for soil invertebrates.', conservation_information: 'See the dated source assessment.', ethical_guidance: 'Observe from a distance; do not disturb nesting birds.', source_name: 'IUCN Red List', source_url: 'https://example.org/species', source_license: 'IUCN terms', explanation: 'BirdNET suggested this species; the cited record describes its habitat.', outdoor_activities: ['Listen quietly near a wetland path.', 'Notice plants along the water edge.', 'Look for insects without disturbing them.'], disclaimer: 'BirdNET prediction; not independently verified.' })));
+    render(<NatureGuide scientificName="Bostrychia hagedash"/>);
+    fireEvent.click(screen.getByRole('button', { name: 'Learn about this species' }));
+    expect(await screen.findByText('Wetlands and wooded areas.')).toBeDefined();
+    expect(screen.getByText('Listen quietly near a wetland path.')).toBeDefined();
+    expect(screen.getByRole('link', { name: /Source: IUCN Red List/ }).getAttribute('href')).toBe('https://example.org/species');
+  });
 });

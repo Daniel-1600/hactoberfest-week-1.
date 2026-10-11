@@ -1,0 +1,10 @@
+{
+  "name": "EcoSound — Wildlife Discovery",
+  "short_name": "EcoSound",
+  "description": "Listen, explore, and keep a nature journal.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5e9",
+  "theme_color": "#235c41",
+  "icons": [{ "src": "/ecosound-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

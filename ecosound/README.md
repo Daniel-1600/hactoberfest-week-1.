@@ -58,9 +58,22 @@ The backend reads these optional environment variables:
 | `PYTHON_EXECUTABLE` | `../.venv/bin/python` | BirdNET environment interpreter |
 | `INFERENCE_SCRIPT` | `../inference/identify.py` | Python adapter path |
 | `INFERENCE_TIMEOUT` | `180s` | Maximum model call time, capped at `210s` |
+| `INFERENCE_PROVIDER` | `local` | Use `local` BirdNET or authenticated `modal` HTTP inference |
+| `BIRDNET_MODAL_URL` | empty | Deployed BirdNET Modal service URL; backend only |
+| `MODAL_PROXY_TOKEN_ID` / `MODAL_PROXY_TOKEN_SECRET` | empty | BirdNET endpoint proxy credentials; backend only |
 | `QUEST_TIMEZONE` | `Africa/Nairobi` | Calendar day used by the quest |
 | `FRONTEND_ORIGIN` | `http://localhost:3000` | Browser origin allowed by CORS |
 | `BIRDNET_APP_DATA` | BirdNET package default | Model asset cache; `.env.example` points to `../data/birdnet` |
+| `QWEN_ENABLED` / `QWEN_PROVIDER` | `false` / `local` | Enable the guide/adventure model and choose local or Modal |
+| `QWEN_MODEL_PATH` / `QWEN_ENDPOINT` | `qwen3:1.7b` / local Ollama URL | Local OpenAI-compatible Qwen service settings |
+| `QWEN_MODAL_URL` | empty | Deployed Qwen Modal base URL; backend only |
+| `QWEN_MODAL_PROXY_TOKEN_ID` / `QWEN_MODAL_PROXY_TOKEN_SECRET` | empty | Qwen endpoint proxy credentials; backend only |
+| `QWEN_TIMEOUT_SECONDS` | `60` | Generation request timeout |
+| `NATURELM_ENABLED` / `NATURELM_MODEL_PATH` / `NATURELM_ENDPOINT` | `false` / official model ID / loopback sidecar | Optional NatureLM audio descriptions; never a verified species label |
+| `NATURELM_TIMEOUT_SECONDS` | `120` | NatureLM call timeout |
+| `PUBLIC_MAP_ENABLED` | `true` | Enables the generalized public observations endpoint |
+| `OBSERVATION_LOCATION_PRECISION` | `coarse` | `coarse` rounds public map coordinates to 2 decimal places; `very_coarse` to 1 |
+| `NEXT_PUBLIC_OFFLINE_CACHE_ENABLED` | `true` | Enables the browser's best-effort IndexedDB JSON cache |
 
 Paths above are relative to the backend working directory. The frontend reads `NEXT_PUBLIC_API_URL`, defaulting to `http://localhost:8080`.
 
@@ -99,5 +112,15 @@ Saving via the smoke script changes the local collection. A no-detection result 
 Each upload becomes a recording with server receipt time. BirdNET returns zero or more timestamped candidates. Saving one candidate creates a discovery; a second candidate from the same recording cannot be saved. Confirmation records only the user's own judgment and displays **“Personally confirmed — not independently scientifically verified.”** The quest counts saved discoveries, including repeated calls of one species for its calls task, while its species task counts distinct plausible scientific names. The data stays in the local SQLite database and audio directory; EcoSound does not retrain BirdNET or publish recordings.
 
 The application code is MIT licensed. The separate BirdNET model has [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) terms, including a noncommercial restriction. See [third-party notices](docs/THIRD_PARTY_NOTICES.md) before packaging or broader use.
+
+## Outdoor adventures and community features
+
+The **Explore** view creates and persists short outdoor missions. Qwen can run on a local OpenAI-compatible service or the independently deployed L4 Modal service. Its Nature Guide explanation is grounded in the curated species record, includes three general outdoor activities, and keeps the BirdNET result labeled as a prediction. If unavailable or malformed, the app shows curated facts without inventing model output. See [AI adventures](docs/ai-adventures.md) and [Modal deployment](docs/modal-deployment.md).
+
+BirdNET results open in the Nature Guide. Facts are retrieved from a small local curated store before optional Qwen summaries, with source attribution and a no-data response. Community observations require explicit consent; locations are generalized for the public map and unmapped/sensitive species remain hidden. A route-free Karura Forest concept is marked unaffiliated and has no fabricated trail. See [education](docs/wildlife-education.md), [map](docs/biodiversity-map.md), and [destinations](docs/destination-integration.md).
+
+The application is a PWA. Previously loaded JSON and adventure instructions are cached in the browser; recordings and queued actions can wait for connectivity and synchronize idempotently. BirdNET, Qwen generation/explanations, NatureLM, new server data, and map tiles need a connection. This is not on-device inference. The optional NatureLM audio description adapter is disabled by default; gated model access and real inference were unavailable in this environment. See [offline architecture](docs/offline-architecture.md), [NatureLM](docs/naturelm-integration.md), and [privacy](docs/privacy.md).
+
+Model licenses are distinct: Qwen3-1.7B is Apache-2.0, while BirdNET weights remain CC BY-NC-SA 4.0. NatureLM deployment additionally depends on its upstream terms and access to the separately licensed base model. No weights or recordings are committed. MapLibre GL JS is MIT; hosted tiles follow OpenFreeMap terms and OpenStreetMap attribution. Review [third-party notices](docs/THIRD_PARTY_NOTICES.md).
 
 For implementation details, see the [architecture](docs/architecture.md) and [API contract](docs/api-contract.md). The [hackathon write-up](docs/hackathon-submission.md) includes the problem statement, limitations, future work, and demo script.

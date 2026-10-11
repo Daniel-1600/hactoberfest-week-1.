@@ -9,12 +9,24 @@ export class ApiError extends Error { constructor(message: string, public code: 
 export function audioUrl(path: string) { return new URL(path, `${API_BASE}/`).toString(); }
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   let response: Response;
+  const method = (options?.method || 'GET').toUpperCase();
   try { response = await fetch(`${API_BASE}${path}`, options); }
-  catch { throw new ApiError('EcoSound could not reach the server. Check that the backend is running and try again.', 'network_error', 0); }
+  catch {
+    if (method === 'GET') {
+      try {
+        const cached = await cacheRead<T>(`GET:${path}`);
+        if (cached !== null) return cached;
+      } catch { /* IndexedDB may be disabled or full; report the network state below. */ }
+    }
+    throw new ApiError('EcoSound could not reach the server. Check your connection and try again.', 'network_error', 0);
+  }
   let body;
   try { body = await response.json(); }
   catch { throw new ApiError('The server returned an unreadable response. Please try again.', 'invalid_response', response.status); }
-  if (!response.ok) throw new ApiError(body?.error?.message || 'Something went wrong. Please try again.', body?.error?.code || 'request_failed', response.status);
+  if (!response.ok) throw new ApiError(body?.error?.message || body?.message || 'Something went wrong. Please try again.', body?.error?.code || 'request_failed', response.status);
+  if (method === 'GET') {
+    try { await cacheWrite(`GET:${path}`, body); } catch { /* Caching is best effort. */ }
+  }
   return body as T;
 }
 export function strongestCandidates(predictions: Prediction[]) {
@@ -25,3 +37,4 @@ export function strongestCandidates(predictions: Prediction[]) {
   }
   return [...grouped.values()].sort((a, b) => b.confidence - a.confidence);
 }
+import { cacheRead, cacheWrite } from './offline-store';

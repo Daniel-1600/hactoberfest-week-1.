@@ -17,6 +17,10 @@ EcoSound's own source code is under the repository's MIT license. The components
 | [SoundFile](https://github.com/bastibe/python-soundfile/blob/master/README.rst) | BirdNET audio dependency | BSD 3-Clause; its underlying libsndfile is separately licensed |
 | [ONNX Runtime](https://github.com/microsoft/onnxruntime/blob/main/LICENSE) | BirdNET ONNX execution | MIT; see its third-party notices |
 | [FFmpeg and FFprobe](https://www.ffmpeg.org/legal.html) | Server-side audio inspection and decoding | LGPL 2.1+ by default; GPL terms apply to builds with GPL components |
+| [Qwen3-1.7B model weights](https://huggingface.co/Qwen/Qwen3-1.7B) | Optional local adventure generation and grounded species summaries | Apache-2.0; model weights are not committed |
+| [NatureLM-audio](https://github.com/earthspecies/NatureLM-audio) | Optional experimental audio descriptions | Review the upstream repository's license and the separate gated Llama 3.1 base-model license before use; weights are not committed |
+| [MapLibre GL JS](https://github.com/maplibre/maplibre-gl-js) | Optional community map renderer | MIT; loaded from a CDN on the map screen |
+| [OpenFreeMap](https://openfreemap.org/tos/) | Hosted map style/tiles | Subject to OpenFreeMap terms and availability; map data attribution is provided by the style, including OpenStreetMap contributors |
 
 The `birdnet==1.1.1` package is pinned, while model assets are fetched separately. EcoSound does not bundle BirdNET weights, training audio, or a sample soundscape. The model's noncommercial and share-alike terms matter separately from EcoSound's MIT license. User recordings remain in the local instance unless its operator chooses to share them.
 

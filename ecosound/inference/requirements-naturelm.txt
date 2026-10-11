@@ -1,0 +1,4 @@
+# Install the official repository separately after gaining access to its gated Llama 3.1 8B base weights:
+# git clone https://github.com/earthspecies/NatureLM-audio
+# cd NatureLM-audio && uv sync (CPU-only: uv sync --no-group gpu)
+# Run naturelm_server.py with the official repository environment's Python interpreter.
