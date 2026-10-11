@@ -16,7 +16,7 @@ import (
 )
 
 var ErrNotFound = errors.New("no curated species record is available")
-var ErrModelUnavailable = errors.New("local Qwen model is unavailable")
+var ErrModelUnavailable = errors.New("Qwen model is unavailable")
 
 type Species struct {
 	ScientificName          string `json:"scientific_name"`

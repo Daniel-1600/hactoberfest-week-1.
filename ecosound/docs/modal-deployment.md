@@ -43,7 +43,7 @@ modal deploy modal/qwen_app.py
 modal run --env main modal/qwen_app.py::cache_model
 ```
 
-`cache_model` stores `Qwen/Qwen3-1.7B` in the `ecosound-qwen-huggingface-cache` volume without allocating a GPU. vLLM serves the OpenAI-compatible API on an L4, with vLLM artifacts in a separate persistent volume. The authenticated web server scales to zero after one minute idle. The deployment does not start or reserve an L4 until a request needs a container.
+`cache_model` stores `Qwen/Qwen3-1.7B` in the `ecosound-qwen-huggingface-cache` volume without allocating a GPU. vLLM serves the OpenAI-compatible API on an L4, with vLLM artifacts in a separate persistent volume. The serving function is capped at one L4 container and uses eager execution to avoid compilation during cold starts. The authenticated web server scales to zero after one minute idle. The deployment does not start or reserve an L4 until a request needs a container.
 
 Enable it on the Go backend by setting:
 
@@ -54,7 +54,7 @@ QWEN_MODAL_URL=https://YOUR-WORKSPACE--ecosound-qwen-nature-guide-serve-qwen.mod
 QWEN_MODEL_PATH=qwen3-1.7b
 QWEN_MODAL_PROXY_TOKEN_ID=wk-...
 QWEN_MODAL_PROXY_TOKEN_SECRET=ws-...
-QWEN_TIMEOUT_SECONDS=60
+QWEN_TIMEOUT_SECONDS=180
 ```
 
 For local Ollama or another compatible server, use `QWEN_PROVIDER=local`, `QWEN_ENDPOINT`, and the local model name. Keep `QWEN_ENABLED=false` to turn off model-generated explanations and activities while retaining curated species facts. Qwen is also used by the existing adventure generator when enabled.
@@ -71,7 +71,7 @@ cd backend && go test ./...
 cd ../frontend && npm test -- --run
 ```
 
-For an end-to-end BirdNET check, verify the HTTP response reports `birdnet` / `3.0` and inspect the returned real candidates. For Qwen, save one returned BirdNET prediction as a discovery, call `POST /api/discoveries/{id}/explain`, and check that the response includes cited curated facts, three activities, and the unverified-prediction disclaimer. An authenticated request without a valid Modal Proxy Token should receive 401 before it reaches either model service.
+For an end-to-end BirdNET check, verify the HTTP response reports `birdnet` / `3.0` and inspect the returned real candidates. For Qwen, save one returned BirdNET prediction as a discovery, call `POST /api/discoveries/{id}/explain`, and check that the response includes cited curated facts, three activities, and the unverified-prediction disclaimer. A request without a valid Modal Proxy Token should receive 401 before it reaches either model service.
 
 ## References
 
@@ -80,3 +80,19 @@ For an end-to-end BirdNET check, verify the HTTP response reports `birdnet` / `3
 - [Modal vLLM OpenAI-compatible serving example](https://modal.com/docs/examples/llm_inference)
 - [Qwen3-1.7B model card and license](https://huggingface.co/Qwen/Qwen3-1.7B)
 - [BirdNET package and model backends](https://pypi.org/project/birdnet/)
+
+## Observed deployment verification (2026-10-12)
+
+Both apps were deployed independently in the `chegedan699` workspace:
+
+- BirdNET: `https://chegedan699--ecosound-birdnet-web-app.modal.run`
+- Qwen: `https://chegedan699--ecosound-qwen-nature-guide-serve-qwen.modal.run`
+
+BirdNET was deployed and verified before Qwen implementation. A 60-second mono WAV returned HTTP 200 through Go with the unchanged BirdNET 3.0 contract and 33 temporal candidates. A second 14.3035-second WAV returned six candidates, including a Hadada Ibis candidate with score 0.9448499083518982. These are model scores, not independently confirmed identifications. Saving that actual prediction and calling `/api/discoveries/1/explain` returned an actual Qwen explanation, three outdoor activities, cited curated facts, and the uncertainty disclaimer. Verification used an isolated temporary SQLite database and audio directory.
+
+Recording attribution:
+
+- [Common Blackbird song](https://commons.wikimedia.org/wiki/File:Common_Blackbird_song_(Turdus_merula).ogg), Diana Tudor, CC BY 4.0; converted to a 60-second mono WAV.
+- [Hadada Ibis recording](https://commons.wikimedia.org/wiki/File:Hadada_Ibis_(Bostrychia_hagedash)_(022A-WA03044X0019-0013M0).ogg), British Library Board, recordist A. R. Gregory, CC BY 4.0; converted to mono WAV.
+
+Curated explanation coverage depends on `species_knowledge`; unsupported species return a clear unavailable response instead of invented facts. The final deployment took approximately three minutes to initialize on a fresh container, exceeding the 180-second Go deadline for the first request. The retry against the final deployment returned HTTP 200 with an actual Qwen explanation, three activities, and the uncertainty disclaimer. A retry after initialization is necessary in that case. Cold starts can still exceed a request deadline; the UI retains curated facts on model errors. Temporary verification proxy credentials are revoked after checks; configure your own backend-only proxy credentials for ongoing use.

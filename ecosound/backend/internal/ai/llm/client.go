@@ -1,4 +1,4 @@
-// Package llm calls a long-running local OpenAI-compatible model server.
+// Package llm calls a local or Modal OpenAI-compatible model server.
 package llm
 
 import (
@@ -42,7 +42,7 @@ type chatResponse struct {
 
 func (c Client) Complete(ctx context.Context, system, prompt string, jsonMode bool) (string, error) {
 	if c.Endpoint == "" || c.Model == "" {
-		return "", errors.New("local Qwen endpoint or model is not configured")
+		return "", errors.New("Qwen endpoint or model is not configured")
 	}
 	timeout := c.Timeout
 	if timeout <= 0 {
@@ -64,33 +64,34 @@ func (c Client) Complete(ctx context.Context, system, prompt string, jsonMode bo
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if c.ProxyTokenID != "" && c.ProxyTokenKey != "" {
-		req.Header.Set("Authorization", "Bearer "+c.ProxyTokenID+"."+c.ProxyTokenKey)
-	}
+	c.setProxyAuth(req)
 	client := c.HTTP
 	if client == nil {
-		client = &http.Client{Timeout: timeout}
+		client = &http.Client{Timeout: timeout, CheckRedirect: rejectRedirect}
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("local model request failed: %w", err)
+		return "", fmt.Errorf("Qwen request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-		return "", fmt.Errorf("local model returned HTTP %d", resp.StatusCode)
+		return "", fmt.Errorf("Qwen returned HTTP %d", resp.StatusCode)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil {
 		return "", err
 	}
+	if len(data) > 1<<20 {
+		return "", errors.New("Qwen response exceeds 1 MiB")
+	}
 	var result chatResponse
 	if err := json.Unmarshal(data, &result); err != nil || len(result.Choices) != 1 {
-		return "", errors.New("local model returned an invalid chat response")
+		return "", errors.New("Qwen returned an invalid chat response")
 	}
 	content := strings.TrimSpace(result.Choices[0].Message.Content)
 	if content == "" {
-		return "", errors.New("local model returned empty content")
+		return "", errors.New("Qwen returned empty content")
 	}
 	return content, nil
 }
@@ -106,9 +107,10 @@ func (c Client) Available(ctx context.Context) bool {
 	if err != nil {
 		return false
 	}
+	c.setProxyAuth(req)
 	client := c.HTTP
 	if client == nil {
-		client = &http.Client{Timeout: 2 * time.Second}
+		client = &http.Client{Timeout: 2 * time.Second, CheckRedirect: rejectRedirect}
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -123,7 +125,7 @@ func (c Client) Available(ctx context.Context) bool {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&models) != nil {
+	if json.NewDecoder(io.LimitReader(resp.Body, (1<<20)+1)).Decode(&models) != nil {
 		return false
 	}
 	for _, model := range models.Data {
@@ -132,4 +134,14 @@ func (c Client) Available(ctx context.Context) bool {
 		}
 	}
 	return false
+}
+
+func (c Client) setProxyAuth(req *http.Request) {
+	if c.ProxyTokenID != "" && c.ProxyTokenKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.ProxyTokenID+"."+c.ProxyTokenKey)
+	}
+}
+
+func rejectRedirect(req *http.Request, via []*http.Request) error {
+	return http.ErrUseLastResponse
 }

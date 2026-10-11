@@ -2,6 +2,10 @@
 
 This document separates checks that can run without downloaded model assets from the end-to-end identification check.
 
+## Current Modal verification (2026-10-12)
+
+BirdNET CPU and Qwen L4 have now been deployed and exercised through the Go API with real licensed bird audio and a saved actual prediction. See [deployment evidence](modal-deployment.md#observed-deployment-verification-2026-10-12). The earlier environment limitations below are historical. The complete Go suite, 18 Python tests, 14 frontend tests, TypeScript, and ESLint passed in this follow-up. Physical microphone and browser walkthrough checks remain manual.
+
 ## Automated checks
 
 Run from the repository's `ecosound` directory:
@@ -49,4 +53,4 @@ Go checks used `GOCACHE=/tmp/ecosound-go-cache` and cached module dependencies w
 
 ## Remaining acceptance checks
 
-The code and automated checks are complete, but the application's end-to-end definition of done is not yet verified. A connected machine that permits local servers must install BirdNET, download its weights, identify authentic bird audio, and run the browser recording → identify → save → collection → quest-completion loop. Physical microphone behavior, visual layout in a real browser, and the 90-second demo timing remain unverified. No fixture predictions are available in the production application.
+Real audio identification and Qwen explanation through Go are now verified on Modal. Still run the browser recording → identify → save → collection → quest-completion loop. Physical microphone behavior, visual layout in a real browser, and the 90-second demo timing remain unverified. No fixture predictions are available in the production application.

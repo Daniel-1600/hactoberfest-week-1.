@@ -14,7 +14,7 @@ export default function NatureGuide({ scientificName, discoveryId }: { scientifi
       const source = await request<Record>(`/api/species/${encodeURIComponent(scientificName)}`);
       if (discoveryId) {
         try { setRecord(await request<Record>(`/api/discoveries/${discoveryId}/explain`, { method: 'POST' })); }
-        catch { setRecord(source); setError('Curated facts are available. The local Qwen explanation service is not available right now.'); }
+        catch { setRecord(source); setError('Curated facts are available. The Qwen explanation service is not available right now.'); }
       } else setRecord(source);
     } catch (e) { setError(e instanceof Error ? e.message : 'No curated information is available for this species yet.'); }
     finally { setBusy(false); }

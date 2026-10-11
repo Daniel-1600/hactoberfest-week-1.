@@ -68,7 +68,7 @@ The backend reads these optional environment variables:
 | `QWEN_MODEL_PATH` / `QWEN_ENDPOINT` | `qwen3:1.7b` / local Ollama URL | Local OpenAI-compatible Qwen service settings |
 | `QWEN_MODAL_URL` | empty | Deployed Qwen Modal base URL; backend only |
 | `QWEN_MODAL_PROXY_TOKEN_ID` / `QWEN_MODAL_PROXY_TOKEN_SECRET` | empty | Qwen endpoint proxy credentials; backend only |
-| `QWEN_TIMEOUT_SECONDS` | `60` | Generation request timeout |
+| `QWEN_TIMEOUT_SECONDS` | `180` | Generation request timeout |
 | `NATURELM_ENABLED` / `NATURELM_MODEL_PATH` / `NATURELM_ENDPOINT` | `false` / official model ID / loopback sidecar | Optional NatureLM audio descriptions; never a verified species label |
 | `NATURELM_TIMEOUT_SECONDS` | `120` | NatureLM call timeout |
 | `PUBLIC_MAP_ENABLED` | `true` | Enables the generalized public observations endpoint |
@@ -97,7 +97,7 @@ ffmpeg -i input-audio.ext -vn -ac 1 -ar 32000 -c:a pcm_s16le -t 60 demo-bird.wav
 make verify-inference AUDIO=/absolute/path/demo-bird.wav
 ```
 
-Check that the converted clip is at least one second long. The first verification can download model assets and take longer than later calls. No official sample download or successful species identification was verified in the restricted build environment; use a recording you are permitted to demo and confirm its result in your own connected environment.
+Check that the converted clip is at least one second long. The first verification can download model assets and take longer than later calls. Modal BirdNET was verified through the Go API with real licensed Blackbird and Hadada recordings; see [Modal deployment and verification](docs/modal-deployment.md). Use a recording you are permitted to demo and treat returned species as candidates.
 
 With the API running, `scripts/smoke.sh` checks health. Pass a real audio file to invoke BirdNET, save its first candidate if one exists, and print quest progress:
 

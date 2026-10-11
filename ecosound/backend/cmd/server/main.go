@@ -59,7 +59,7 @@ func run() error {
 	default:
 		return errors.New("INFERENCE_PROVIDER must be local or modal")
 	}
-	qwenTimeout, err := time.ParseDuration(env("QWEN_TIMEOUT_SECONDS", "60") + "s")
+	qwenTimeout, err := time.ParseDuration(env("QWEN_TIMEOUT_SECONDS", "180") + "s")
 	if err != nil || qwenTimeout <= 0 || qwenTimeout > 5*time.Minute {
 		return errors.New("QWEN_TIMEOUT_SECONDS must be between 1 and 300")
 	}

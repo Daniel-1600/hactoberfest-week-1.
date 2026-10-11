@@ -1,11 +1,10 @@
 """Modal CPU deployment for the existing BirdNET 3.0 ONNX adapter.
 
-Deploy from the ecosound directory with `modal deploy modal/birdnet.py`.
+Deploy from the ecosound directory with `modal deploy modal/birdnet_app.py`.
 """
 
 from pathlib import Path
 import sys
-import traceback
 
 import modal
 
@@ -47,6 +46,7 @@ def warm_model():
     cpu=4,
     memory=8192,
     timeout=210,
+    max_containers=1,
     scaledown_window=60,
     volumes={MODEL_DIR: volume},
 )
@@ -61,9 +61,12 @@ def web_app():
     async def identify_endpoint(request: Request):
         if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "audio/wav":
             raise HTTPException(status_code=415, detail="Content-Type must be audio/wav")
-        payload = await request.body()
-        if len(payload) > 8 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="WAV exceeds 8 MiB")
+        payload = bytearray()
+        async for chunk in request.stream():
+            payload.extend(chunk)
+            if len(payload) > 8 * 1024 * 1024:
+                raise HTTPException(status_code=413, detail="WAV exceeds 8 MiB")
+        payload = bytes(payload)
         try:
             sys.path.insert(0, "/root")
             from identify import identify
@@ -73,17 +76,8 @@ def web_app():
             return JSONResponse(result)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        except Exception as exc:
+        except Exception:
             # Avoid returning model paths, cache details, or runtime diagnostics to callers.
-            installed = sys.modules.get("birdnet")
-            print(
-                "BirdNET module diagnostic: "
-                f"file={getattr(installed, '__file__', None)!r}, "
-                f"has_load={callable(getattr(installed, 'load', None))}",
-                file=sys.stderr,
-            )
-            print(f"BirdNET request failed ({type(exc).__name__}): {str(exc)[:500]}", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
-            raise HTTPException(status_code=503, detail="BirdNET inference unavailable") from exc
+            raise HTTPException(status_code=503, detail="BirdNET inference unavailable")
 
     return service

@@ -41,7 +41,7 @@ func (s *Server) explain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, retrieval.ErrModelUnavailable) {
-		fail(w, 503, "education_unavailable", "Curated facts are available, but the local Qwen model is not ready to write an explanation.")
+		fail(w, 503, "education_unavailable", "Curated facts are available, but the Qwen service is not ready to write an explanation.")
 		return
 	}
 	if errors.Is(err, sql.ErrNoRows) {
@@ -49,7 +49,7 @@ func (s *Server) explain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		fail(w, 502, "invalid_explanation", "The local model returned an invalid explanation.")
+		fail(w, 502, "invalid_explanation", "The Qwen service returned an invalid explanation.")
 		return
 	}
 	reply(w, 200, result)

@@ -42,12 +42,13 @@ def cache_model():
     """Populate the persistent HF cache without holding an L4 during download."""
     from huggingface_hub import snapshot_download
 
-    snapshot_download(repo_id=MODEL, cache_dir=HF_CACHE)
+    snapshot_download(repo_id=MODEL, cache_dir=f"{HF_CACHE}/hub")
     hf_volume.commit()
 
 
 @app.function(
     gpu="L4",
+    max_containers=1,
     cpu=4,
     memory=24576,
     timeout=900,
@@ -67,15 +68,17 @@ def serve_qwen():
             "8000",
             "--served-model-name",
             SERVED_MODEL,
+            "--enforce-eager",
             "--dtype",
             "bfloat16",
             "--max-model-len",
             "4096",
+            "--max-num-batched-tokens",
+            "512",
             "--max-num-seqs",
             "8",
             "--gpu-memory-utilization",
             "0.8",
-            "--disable-log-requests",
         ],
         stdout=None,
         stderr=None,
