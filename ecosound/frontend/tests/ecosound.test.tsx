@@ -190,12 +190,19 @@ it('groups the highest score for display without inventing prediction identifier
 describe('outdoor expansion', () => {
   it('creates and clearly labels an adventure when the server returns its safe fallback', async () => {
     const generated = { id: 'adventure-1', title: 'A Quiet Nature Quest', description: 'Take fifteen minutes outdoors.', duration_minutes: 15, interest: 'birdwatching', environment: 'park', difficulty: 'beginner', generation_source: 'fallback', status: 'ready', tasks: [] };
-    const fetchMock = vi.fn((url: string) => url.endsWith('/api/adventures') ? response({ adventures: [] }) : response(generated, 201));
+    const fetchMock = vi.fn((url: string, options?: RequestInit) => { void options; return url.endsWith('/api/adventures') ? response({ adventures: [] }) : response(generated, 201); });
     vi.stubGlobal('fetch', fetchMock);
     const onStart = vi.fn(); render(<Explore onStart={onStart} onDestinations={() => {}}/>);
     await screen.findByText('Your next outdoor story starts here.');
-    fireEvent.click(screen.getByRole('button', { name: /Generate Adventure/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Slow & curious/ }));
+    expect((screen.getByLabelText('Interest') as HTMLSelectElement).value).toBe('mindfulness');
+    expect((screen.getByLabelText('Environment') as HTMLSelectElement).value).toBe('garden');
+    expect(screen.getByRole('button', { name: '10 min' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: '30 min' }));
+    fireEvent.click(screen.getByRole('button', { name: /Build my nature mission/ }));
     await waitFor(() => expect(onStart).toHaveBeenCalledWith(generated));
+    const generatedRequest = fetchMock.mock.calls.find(([url]) => url.endsWith('/api/adventures/generate'));
+    expect(JSON.parse(generatedRequest![1]!.body as string)).toMatchObject({ interest: 'mindfulness', environment: 'garden', duration_minutes: 30 });
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/api/adventures/generate'))).toBe(true);
   });
 

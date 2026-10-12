@@ -54,7 +54,7 @@ QWEN_MODAL_URL=https://YOUR-WORKSPACE--ecosound-qwen-nature-guide-serve-qwen.mod
 QWEN_MODEL_PATH=qwen3-1.7b
 QWEN_MODAL_PROXY_TOKEN_ID=wk-...
 QWEN_MODAL_PROXY_TOKEN_SECRET=ws-...
-QWEN_TIMEOUT_SECONDS=180
+QWEN_TIMEOUT_SECONDS=300
 ```
 
 For local Ollama or another compatible server, use `QWEN_PROVIDER=local`, `QWEN_ENDPOINT`, and the local model name. Keep `QWEN_ENABLED=false` to turn off model-generated explanations and activities while retaining curated species facts. Qwen is also used by the existing adventure generator when enabled.
@@ -95,4 +95,4 @@ Recording attribution:
 - [Common Blackbird song](https://commons.wikimedia.org/wiki/File:Common_Blackbird_song_(Turdus_merula).ogg), Diana Tudor, CC BY 4.0; converted to a 60-second mono WAV.
 - [Hadada Ibis recording](https://commons.wikimedia.org/wiki/File:Hadada_Ibis_(Bostrychia_hagedash)_(022A-WA03044X0019-0013M0).ogg), British Library Board, recordist A. R. Gregory, CC BY 4.0; converted to mono WAV.
 
-Curated explanation coverage depends on `species_knowledge`; unsupported species return a clear unavailable response instead of invented facts. The final deployment took approximately three minutes to initialize on a fresh container, exceeding the 180-second Go deadline for the first request. The retry against the final deployment returned HTTP 200 with an actual Qwen explanation, three activities, and the uncertainty disclaimer. A retry after initialization is necessary in that case. Cold starts can still exceed a request deadline; the UI retains curated facts on model errors. Temporary verification proxy credentials are revoked after checks; configure your own backend-only proxy credentials for ongoing use.
+Curated explanation coverage depends on `species_knowledge`; unsupported species return a clear unavailable response instead of invented facts. The final deployment took approximately three minutes to initialize on a fresh container, exceeding the former 180-second Go deadline for the first request. The retry against the final deployment returned HTTP 200 with an actual Qwen explanation, three activities, and the uncertainty disclaimer. Qwen now allows 300 seconds per availability check or generation, and follows only HTTP 303 redirects to the original HTTPS origin, retaining proxy authentication. Its API routes allow 16 minutes for the availability check, up to two generation attempts and response processing; the HTTP server write deadline allows another minute. Other API request deadlines remain 240 seconds. Cold starts can still exceed a request deadline; the UI retains curated facts on model errors. Temporary verification proxy credentials are revoked after checks; configure your own backend-only proxy credentials for ongoing use.

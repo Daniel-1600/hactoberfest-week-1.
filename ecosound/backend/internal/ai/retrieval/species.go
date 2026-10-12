@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"unicode/utf8"
 
@@ -75,36 +76,56 @@ func (s Service) Explain(ctx context.Context, discoveryID int64) (Explanation, e
 	if err != nil {
 		return Explanation{}, err
 	}
-	system := "Explain the curated bird facts and provide exactly three brief, low-impact outdoor nature observation activities. Use species facts only from the provided curated record. The input includes a BirdNET prediction score; it is not proof or a probability of identity. Always describe the bird as a BirdNET suggestion or candidate, never as a confirmed observation. Activities must be general suggestions that do not assume this bird is present. Return one JSON object only, with string field explanation and string array field outdoor_activities. No markdown or extra keys."
-	answer, err := s.Model.Complete(ctx, system, string(contextData), true)
-	if err != nil {
-		return Explanation{}, fmt.Errorf("%w: %v", ErrModelUnavailable, err)
+	system := "Explain the curated bird facts and provide exactly three brief, low-impact outdoor nature observation activities. Use species facts only from the provided curated record. The input includes a BirdNET prediction score; it is not proof or a probability of identity. Always describe the bird as a BirdNET suggestion or candidate. Use 'not independently verified' for uncertainty; do not use the phrases 'confirmed', 'definitely identified', 'certainly identified', or 'proves that', even in a negative sentence. Activities must be general suggestions that do not assume this bird is present. Return one JSON object only, with string field explanation and string array field outdoor_activities. No markdown or extra keys. The explanation must be 10 to 900 UTF-8 bytes; aim for two short sentences under 500 bytes. Provide exactly three activity strings, each 10 to 180 UTF-8 bytes; aim for one short sentence under 120 bytes per activity."
+	prompt := string(contextData)
+	var generated generatedExplanation
+	for attempt := 1; attempt <= 2; attempt++ {
+		answer, modelErr := s.Model.Complete(ctx, system, prompt, true)
+		if modelErr != nil {
+			return Explanation{}, fmt.Errorf("%w: %v", ErrModelUnavailable, modelErr)
+		}
+		generated, err = parseExplanation(answer)
+		if err == nil {
+			return Explanation{Species: item, Explanation: generated.Explanation, OutdoorActivities: generated.OutdoorActivities, Disclaimer: "BirdNET suggested this species; the recording has not been independently verified. AI text summarizes the cited facts and suggests general outdoor activities."}, nil
+		}
+		// Log only controlled validation reasons, never raw model text or input.
+		slog.Warn("Qwen explanation rejected", "discovery_id", discoveryID, "attempt", attempt, "reason", err.Error())
+		prompt = string(contextData) + "\nYour previous response was rejected: " + err.Error() + ". Generate a fresh answer that follows every format, length and uncertainty requirement."
 	}
+	return Explanation{}, err
+}
+
+type generatedExplanation struct {
+	Explanation       string   `json:"explanation"`
+	OutdoorActivities []string `json:"outdoor_activities"`
+}
+
+func parseExplanation(answer string) (generatedExplanation, error) {
 	answer = strings.TrimSpace(answer)
-	var generated struct {
-		Explanation       string   `json:"explanation"`
-		OutdoorActivities []string `json:"outdoor_activities"`
-	}
+	var generated generatedExplanation
 	decoder := json.NewDecoder(bytes.NewBufferString(answer))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&generated) != nil || decoder.Decode(new(any)) != io.EOF {
-		return Explanation{}, errors.New("model returned an invalid explanation object")
+		return generatedExplanation{}, errors.New("model returned an invalid explanation object")
 	}
 	generated.Explanation = strings.TrimSpace(generated.Explanation)
-	if !utf8.ValidString(generated.Explanation) || len(generated.Explanation) > 900 || len(generated.Explanation) < 10 || len(generated.OutdoorActivities) != 3 {
-		return Explanation{}, errors.New("model explanation or activities are outside the allowed limits")
+	if !utf8.ValidString(generated.Explanation) || len(generated.Explanation) > 900 || len(generated.Explanation) < 10 {
+		return generatedExplanation{}, errors.New("model explanation must contain 10 to 900 UTF-8 bytes")
+	}
+	if len(generated.OutdoorActivities) != 3 {
+		return generatedExplanation{}, errors.New("model must return exactly three outdoor activities")
 	}
 	for _, phrase := range []string{"confirmed", "definitely identified", "certainly identified", "proves that"} {
 		if strings.Contains(strings.ToLower(generated.Explanation), phrase) {
-			return Explanation{}, errors.New("model explanation asserts an unverified identification")
+			return generatedExplanation{}, errors.New("model explanation asserts an unverified identification")
 		}
 	}
 	for i, activity := range generated.OutdoorActivities {
 		activity = strings.TrimSpace(activity)
 		if !utf8.ValidString(activity) || len(activity) < 10 || len(activity) > 180 {
-			return Explanation{}, errors.New("model activity is outside the allowed length")
+			return generatedExplanation{}, errors.New("each model activity must contain 10 to 180 UTF-8 bytes")
 		}
 		generated.OutdoorActivities[i] = activity
 	}
-	return Explanation{Species: item, Explanation: generated.Explanation, OutdoorActivities: generated.OutdoorActivities, Disclaimer: "BirdNET suggested this species; the recording has not been independently verified. AI text summarizes the cited facts and suggests general outdoor activities."}, nil
+	return generated, nil
 }

@@ -59,7 +59,7 @@ func run() error {
 	default:
 		return errors.New("INFERENCE_PROVIDER must be local or modal")
 	}
-	qwenTimeout, err := time.ParseDuration(env("QWEN_TIMEOUT_SECONDS", "180") + "s")
+	qwenTimeout, err := time.ParseDuration(env("QWEN_TIMEOUT_SECONDS", "300") + "s")
 	if err != nil || qwenTimeout <= 0 || qwenTimeout > 5*time.Minute {
 		return errors.New("QWEN_TIMEOUT_SECONDS must be between 1 and 300")
 	}
@@ -100,7 +100,7 @@ func run() error {
 		return err
 	}
 	// Bind locally by default: the MVP has no authentication and contains private audio.
-	server := &http.Server{Addr: env("BACKEND_HOST", "127.0.0.1") + ":" + strconv.Itoa(port), Handler: apiServer.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 45 * time.Second, WriteTimeout: 250 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
+	server := newHTTPServer(env("BACKEND_HOST", "127.0.0.1")+":"+strconv.Itoa(port), apiServer.Handler())
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	done := make(chan error, 1)
@@ -122,6 +122,12 @@ func run() error {
 		}
 	}
 	return nil
+}
+
+func newHTTPServer(address string, handler http.Handler) *http.Server {
+	// ReadTimeout limits request input, not model execution. WriteTimeout
+	// must also cover TLS setup, the model checks and validation retry.
+	return &http.Server{Addr: address, Handler: handler, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 45 * time.Second, WriteTimeout: api.QwenRequestTimeout + 60*time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 }
 
 func main() {

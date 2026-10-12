@@ -1,10 +1,8 @@
 package api
 
 import (
-	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"ecosound/backend/internal/adventures"
 )
@@ -111,8 +109,7 @@ func (s *Server) finishAdventure(w http.ResponseWriter, r *http.Request) {
 	reply(w, 200, a)
 }
 func (s *Server) providers(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-	defer cancel()
+	ctx := r.Context()
 	qwenAvailable := s.config.QwenEnabled && s.config.Qwen.Available(ctx)
 	reply(w, 200, map[string]any{"providers": []any{
 		map[string]any{"name": "birdnet", "configured": s.config.Identifier != nil, "available": s.config.Identifier != nil, "supported_tasks": []string{"bird_species_classification", "segment_timestamps"}, "note": "Configured process; a real model call is required to verify weights and runtime."},

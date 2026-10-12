@@ -120,6 +120,18 @@ func New(c Config) (*Server, error) {
 	return s, nil
 }
 
+// Qwen adventures can check availability and make two generation attempts.
+const QwenRequestTimeout = 3*llm.DefaultTimeout + 60*time.Second
+
+func requestTimeout(pattern string) time.Duration {
+	switch pattern {
+	case "POST /api/adventures/generate", "GET /api/inference/providers", "POST /api/discoveries/{id}/explain":
+		return QwenRequestTimeout
+	default:
+		return 240 * time.Second
+	}
+}
+
 func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -133,16 +145,16 @@ func (s *Server) Handler() http.Handler {
 			}
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 240*time.Second)
-		defer cancel()
 		// Keep unknown routes/methods in the same JSON error contract.
 		handler, pattern := s.mux.Handler(r)
+		ctx, cancel := context.WithTimeout(r.Context(), requestTimeout(pattern))
+		defer cancel()
 		if pattern == "" {
 			// ServeMux distinguishes method errors; encode its status explicitly.
 			if r.URL.Path == "/api/identify" || r.URL.Path == "/api/discoveries" || r.URL.Path == "/api/quests/today" || r.URL.Path == "/health" {

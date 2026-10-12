@@ -22,6 +22,26 @@ type Client struct {
 	HTTP          *http.Client
 }
 
+const DefaultTimeout = 300 * time.Second
+
+func (c Client) timeout() time.Duration {
+	if c.Timeout > 0 {
+		return c.Timeout
+	}
+	return DefaultTimeout
+}
+
+func (c Client) httpClient() *http.Client {
+	client := http.Client{}
+	if c.HTTP != nil {
+		client = *c.HTTP
+	}
+	// Use the same budget for the whole redirect chain, including cold starts.
+	client.Timeout = c.timeout()
+	client.CheckRedirect = modalRedirect
+	return &client
+}
+
 type chatRequest struct {
 	Model       string        `json:"model"`
 	Messages    []chatMessage `json:"messages"`
@@ -44,10 +64,7 @@ func (c Client) Complete(ctx context.Context, system, prompt string, jsonMode bo
 	if c.Endpoint == "" || c.Model == "" {
 		return "", errors.New("Qwen endpoint or model is not configured")
 	}
-	timeout := c.Timeout
-	if timeout <= 0 {
-		timeout = 60 * time.Second
-	}
+	timeout := c.timeout()
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	body := chatRequest{Model: c.Model, Messages: []chatMessage{{Role: "system", Content: system}, {Role: "user", Content: prompt}}, Temperature: 0.3, MaxTokens: 900}
@@ -65,10 +82,7 @@ func (c Client) Complete(ctx context.Context, system, prompt string, jsonMode bo
 	}
 	req.Header.Set("Content-Type", "application/json")
 	c.setProxyAuth(req)
-	client := c.HTTP
-	if client == nil {
-		client = &http.Client{Timeout: timeout, CheckRedirect: rejectRedirect}
-	}
+	client := c.httpClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("Qwen request failed: %w", err)
@@ -101,17 +115,14 @@ func (c Client) Available(ctx context.Context) bool {
 		return false
 	}
 	base := strings.TrimSuffix(c.Endpoint, "/chat/completions") + "/models"
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout())
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base, nil)
 	if err != nil {
 		return false
 	}
 	c.setProxyAuth(req)
-	client := c.HTTP
-	if client == nil {
-		client = &http.Client{Timeout: 2 * time.Second, CheckRedirect: rejectRedirect}
-	}
+	client := c.httpClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return false
@@ -142,6 +153,16 @@ func (c Client) setProxyAuth(req *http.Request) {
 	}
 }
 
-func rejectRedirect(req *http.Request, via []*http.Request) error {
-	return http.ErrUseLastResponse
+func modalRedirect(req *http.Request, via []*http.Request) error {
+	// Modal's 303 points to the queued response. Keep Go's POST-to-GET
+	// semantics; never replay the prompt or tokens to a different origin.
+	if len(via) == 0 || len(via) >= 10 || req.Response == nil || req.Response.StatusCode != http.StatusSeeOther {
+		return http.ErrUseLastResponse
+	}
+	original := via[0].URL
+	if original.Scheme != "https" || req.URL.Scheme != "https" ||
+		!strings.EqualFold(req.URL.Host, original.Host) || req.URL.User != nil {
+		return http.ErrUseLastResponse
+	}
+	return nil
 }

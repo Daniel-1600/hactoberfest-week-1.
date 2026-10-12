@@ -83,7 +83,11 @@ export async function updateOperation(item: QueuedOperation): Promise<void> {
 export async function queueRecording(file: Blob, name: string, id = crypto.randomUUID()): Promise<string> {
   const db = await openDB();
   try {
-    await requestValue(db.transaction('recordings', 'readwrite').objectStore('recordings').add({ id, file, name, created_at: new Date().toISOString(), state: 'pending' }));
+    const store = db.transaction('recordings', 'readwrite').objectStore('recordings');
+    // A retry of the same upload is already safely queued. Preserve any result.
+    if (!await requestValue(store.get(id))) {
+      await requestValue(store.add({ id, file, name, created_at: new Date().toISOString(), state: 'pending' }));
+    }
   } finally { db.close(); }
   return id;
 }

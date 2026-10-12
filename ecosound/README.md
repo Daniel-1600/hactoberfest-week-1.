@@ -68,7 +68,7 @@ The backend reads these optional environment variables:
 | `QWEN_MODEL_PATH` / `QWEN_ENDPOINT` | `qwen3:1.7b` / local Ollama URL | Local OpenAI-compatible Qwen service settings |
 | `QWEN_MODAL_URL` | empty | Deployed Qwen Modal base URL; backend only |
 | `QWEN_MODAL_PROXY_TOKEN_ID` / `QWEN_MODAL_PROXY_TOKEN_SECRET` | empty | Qwen endpoint proxy credentials; backend only |
-| `QWEN_TIMEOUT_SECONDS` | `180` | Generation request timeout |
+| `QWEN_TIMEOUT_SECONDS` | `300` | Per Qwen model check or generation timeout, capped at `300s` |
 | `NATURELM_ENABLED` / `NATURELM_MODEL_PATH` / `NATURELM_ENDPOINT` | `false` / official model ID / loopback sidecar | Optional NatureLM audio descriptions; never a verified species label |
 | `NATURELM_TIMEOUT_SECONDS` | `120` | NatureLM call timeout |
 | `PUBLIC_MAP_ENABLED` | `true` | Enables the generalized public observations endpoint |

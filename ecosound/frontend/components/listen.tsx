@@ -51,7 +51,7 @@ export default function Listen({ onSaved, onCollection }: { onSaved: (discoveryI
   };
   const analyze = async () => {
     if (!recorder.file || analyzing) return;
-    setAnalyzing(true); setError(''); setResult(null); setSaved(false); setQueuedSave(false); setSavedDiscoveryID(undefined); setSavedPredictionID(undefined); setSaveError('');
+    setAnalyzing(true); setError(''); setOfflineMessage(''); setResult(null); setSaved(false); setQueuedSave(false); setSavedDiscoveryID(undefined); setSavedPredictionID(undefined); setSaveError('');
     try {
       if (!uploadKeyRef.current) uploadKeyRef.current = crypto.randomUUID();
       const idempotencyKey = uploadKeyRef.current;

@@ -2,6 +2,7 @@ package retrieval
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -66,5 +67,65 @@ func TestCuratedLookupAndGroundedExplanation(t *testing.T) {
 	})}}}
 	if _, err = unsafe.Explain(context.Background(), 1); err == nil {
 		t.Fatal("unverified identification was presented as confirmed")
+	}
+	calls := 0
+	service.Model.HTTP = &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		body, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(body), "900 UTF-8 bytes") || !strings.Contains(string(body), "180 UTF-8 bytes") {
+			t.Error("missing explicit output limits")
+		}
+		content := `{"explanation":"The Hadada Ibis is a BirdNET suggestion, not independently verified.","outdoor_activities":["Listen quietly from a permitted path.","Observe nearby plants without disturbing them.","Record notes about the surrounding habitat."]}`
+		if calls == 1 {
+			content = `{"explanation":"` + strings.Repeat("x", 901) + `","outdoor_activities":[]}`
+		} else if !strings.Contains(string(body), "previous response was rejected") || !strings.Contains(string(body), "curated_species_record") {
+			t.Error("retry missing validation feedback or grounded facts")
+		}
+		encoded, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": content}}}})
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(string(encoded))), Request: r}, nil
+	})}
+	if _, err := service.Explain(context.Background(), 1); err != nil || calls != 2 {
+		t.Fatalf("invalid output did not recover with one retry: calls=%d error=%v", calls, err)
+	}
+	calls = 0
+	service.Model.HTTP = &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"choices":[{"message":{"content":"{}"}}]}`)), Request: r}, nil
+	})}
+	if _, err := service.Explain(context.Background(), 1); err == nil || calls != 2 {
+		t.Fatalf("invalid responses must stop after two attempts: calls=%d error=%v", calls, err)
+	}
+	calls = 0
+	service.Model.HTTP = &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return nil, context.DeadlineExceeded
+	})}
+	if _, err := service.Explain(context.Background(), 1); !errors.Is(err, ErrModelUnavailable) || calls != 1 {
+		t.Fatalf("model failure should not retry: calls=%d error=%v", calls, err)
+	}
+}
+
+func TestExplanationValidationLimits(t *testing.T) {
+	for _, tc := range []struct {
+		name, explanation string
+		activities        []string
+		extra             bool
+	}{
+		{"too_long", strings.Repeat("x", 901), []string{"Listen quietly.", "Observe plants.", "Record notes."}, false},
+		{"too_few_activities", "A BirdNET candidate.", []string{"Listen quietly."}, false},
+		{"activity_too_long", "A BirdNET candidate.", []string{strings.Repeat("x", 181), "Observe plants.", "Record notes."}, false},
+		{"unsafe_claim", "This is a confirmed identification.", []string{"Listen quietly.", "Observe plants.", "Record notes."}, false},
+		{"unknown_field", "A BirdNET candidate.", []string{"Listen quietly.", "Observe plants.", "Record notes."}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			value := map[string]any{"explanation": tc.explanation, "outdoor_activities": tc.activities}
+			if tc.extra {
+				value["extra"] = "not allowed"
+			}
+			encoded, _ := json.Marshal(value)
+			if _, err := parseExplanation(string(encoded)); err == nil {
+				t.Fatal("accepted invalid output")
+			}
+		})
 	}
 }

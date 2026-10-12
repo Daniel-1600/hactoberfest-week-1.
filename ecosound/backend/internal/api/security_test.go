@@ -43,6 +43,9 @@ func TestCORSAndJSONValidation(t *testing.T) {
 		if tc.status == 403 && response.Header().Get("Access-Control-Allow-Origin") != "" {
 			t.Fatal("untrusted origin granted access")
 		}
+		if tc.method == "OPTIONS" && tc.status == 204 && !strings.Contains(response.Header().Get("Access-Control-Allow-Headers"), "Idempotency-Key") {
+			t.Fatal("browser upload preflight does not allow idempotency header")
+		}
 	}
 	for _, body := range []string{`{"prediction_id":1,"scientific_name":"Fake species"}`, `{"prediction_id":1} {"prediction_id":2}`, `{"prediction_id":0}`, `{"prediction_id":"1"}`} {
 		response := request(t, handler, "POST", "/api/discoveries", "application/json", []byte(body))
