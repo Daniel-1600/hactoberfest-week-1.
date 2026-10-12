@@ -1,0 +1,9 @@
+.env
+.env.*
+.git
+data
+bin
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*

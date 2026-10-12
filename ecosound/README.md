@@ -6,6 +6,10 @@ EcoSound is a local, single-user MVP. It has no accounts or authentication. Keep
 
 ## Requirements
 
+For a hosted hackathon demo, use [the Render Blueprint](render.yaml) and follow
+[the deployment guide](docs/render-deployment.md). It uses the existing Modal
+models, two Starter services, and persistent storage for SQLite and audio.
+
 - Go 1.25 or newer with CGO and a C compiler (SQLite driver)
 - Python 3.11 or newer and pip, with network access for installing `birdnet==1.1.1` and downloading BirdNET model assets on first use
 - Node.js 22.12 or newer and npm for the frontend and its development tools (tested with 22.22.2)

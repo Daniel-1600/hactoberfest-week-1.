@@ -1,0 +1,86 @@
+# This Git repo contains EcoSound in ecosound/.
+# Render Dashboard -> New -> Blueprint -> Blueprint Path: ecosound/render.yaml
+# Supply the sync:false values in Render; never commit model credentials.
+services:
+  - type: web
+    name: ecosound-api
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    numInstances: 1
+    dockerfilePath: ./ecosound/backend/Dockerfile
+    dockerContext: ./ecosound/backend
+    healthCheckPath: /health
+    disk:
+      name: ecosound-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: BACKEND_HOST
+        value: 0.0.0.0
+      - key: BACKEND_PORT
+        value: "10000"
+      # Exact public frontend URL, without a trailing slash. Update after Render
+      # assigns ecosound-web its URL (which may include a suffix).
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: DATABASE_PATH
+        value: /var/data/ecosound.sqlite
+      - key: AUDIO_STORAGE_DIR
+        value: /var/data/audio
+      - key: QUEST_TIMEZONE
+        value: Africa/Nairobi
+      - key: INFERENCE_PROVIDER
+        value: modal
+      - key: INFERENCE_TIMEOUT
+        value: 180s
+      - key: BIRDNET_MODAL_URL
+        value: https://chegedan699--ecosound-birdnet-web-app.modal.run
+      - key: MODAL_PROXY_TOKEN_ID
+        sync: false
+      - key: MODAL_PROXY_TOKEN_SECRET
+        sync: false
+      - key: QWEN_ENABLED
+        value: "true"
+      - key: QWEN_PROVIDER
+        value: modal
+      - key: QWEN_MODEL_PATH
+        value: qwen3-1.7b
+      - key: QWEN_TIMEOUT_SECONDS
+        value: "300"
+      - key: QWEN_MODAL_URL
+        value: https://chegedan699--ecosound-qwen-nature-guide-serve-qwen.modal.run
+      - key: QWEN_MODAL_PROXY_TOKEN_ID
+        sync: false
+      - key: QWEN_MODAL_PROXY_TOKEN_SECRET
+        sync: false
+      - key: NATURELM_ENABLED
+        value: "false"
+      - key: PUBLIC_MAP_ENABLED
+        value: "true"
+      - key: OBSERVATION_LOCATION_PRECISION
+        value: coarse
+
+  - type: web
+    name: ecosound-web
+    runtime: node
+    plan: starter
+    region: frankfurt
+    rootDir: ecosound/frontend
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start -- --hostname 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: ecosound-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_OFFLINE_CACHE_ENABLED
+        value: "true"
